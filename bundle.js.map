@@ -1,0 +1,1 @@
+{"version":3,"sources":["index.js"],"names":[],"mappings":";;;;;;;AAAe,SAAS,GAAT,CAAa,CAAb,EAAgB,CAAhB,EAAmB;AAChC,SAAO,CAAC,GAAG,CAAX;AACD","file":"bundle.js","sourcesContent":["export default function sum(a, b) {\n  return a + b\n}\n"]}
