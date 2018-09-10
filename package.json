@@ -9,12 +9,16 @@
   "scripts": {
     "build": "yarn lint && babel src/index.js --out-file bundle.js --source-maps",
     "lint": "eslint --fix .",
-    "test": "jest",
-    "dev": "nodemon"
+    "test": "jest src",
+    "dev": "jest --watch src"
   },
   "dependencies": {
     "@babel/polyfill": "^7.0.0",
-    "amplitude-js": "^4.4.0"
+    "amplitude-js": "^4.4.0",
+    "axios": "^0.18.0",
+    "blueimp-md5": "^2.10.0",
+    "query-string": "^6.1.0",
+    "ua-parser-js": "^0.7.18"
   },
   "devDependencies": {
     "@babel/cli": "^7.0.0",
@@ -26,7 +30,6 @@
     "eslint": "^5.5.0",
     "husky": "^1.0.0-rc.13",
     "jest": "^23.5.0",
-    "nodemon": "^1.18.4",
     "regenerator-runtime": "^0.12.1"
   },
   "babel": {
@@ -83,17 +86,12 @@
       "semi": [
         "error",
         "never"
-      ]
+      ],
+      "constructor-super": "off",
+      "no-this-before-super": "off"
     }
   },
   "jest": {},
-  "nodemonConfig": {
-    "watch": [
-      "src/*.js"
-    ],
-    "exec": "yarn test",
-    "delay": "2500"
-  },
   "husky": {
     "hooks": {
       "pre-commit": "yarn lint",
