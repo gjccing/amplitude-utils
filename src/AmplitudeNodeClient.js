@@ -1,5 +1,4 @@
-// import identify from 'amplitude-js/src/identify'
-import AmplitudeClient from 'amplitude-js/src/AmplitudeClient'
+import AmplitudeClient from 'amplitude-js/src/amplitude-client.js'
 import utils from 'amplitude-js/src/utils'
 import UUID from 'amplitude-js/src/uuid'
 import type from 'amplitude-js/src/type'
@@ -10,49 +9,31 @@ import UAParser from 'ua-parser-js'
 import md5 from 'blueimp-md5'
 import axios from 'axios'
 import qs from 'query-string'
+import _ from 'lodash'
 
-// import cookieStorage from './cookiestorage';
-// import getUtmData from './utm';
+var AmplitudeClientInServer = function AmplitudeClientInServer(instanceName, request) {
+  this._instanceName = utils.isEmptyString(instanceName) ? Constants.DEFAULT_INSTANCE : instanceName.toLowerCase()
+  this._unsentEvents = []
+  this._unsentIdentifys = []
+  this._ua = null
+  this.options = Object.assign({}, DEFAULT_OPTIONS, { saveEvents: false })
+  this._q = [] // queue for proxied functions before script load
+  this._sending = false
+  this._updateScheduled = false
 
-// import localStorage from './localstorage';  // jshint ignore:line
+  // event meta data
+  this._eventId = 0
+  this._identifyId = 0
+  this._lastEventTime = null
+  this._newSession = false
+  this._sequenceNumber = 0
+  this._sessionId = null
+  this._userAgent = null
 
-// import merge from 'lodash/merge';
-// import Request from './xhr';
-// import Revenue from './revenue';
+  this.setByRequest(request)
+}
 
-// import UAParser from 'ua-parser-js';
-// import utils from './utils';
-
-// import version from './version';
-// import DEFAULT_OPTIONS from './options';
-
-export default class ServerAmplitudeClient extends AmplitudeClient {
-  constructor(request) {
-    const userAgent = request.headers['user-agent']
-    let acceptLanguage = request.headers['accept-language']
-    const language = acceptLanguage ? acceptLanguage.split(/,\s*/)[0] : null
-    this._unsentEvents = []
-    this._unsentIdentifys = []
-    this._ua = userAgent ? new UAParser(userAgent).getResult() : null
-    this.options = Object.assign({}, DEFAULT_OPTIONS, {
-      saveEvents: false,
-      language
-    })
-    this._q = [] // queue for proxied functions before script load
-    this._sending = false
-    this._updateScheduled = false
-  
-    // event meta data
-    this._eventId = 0
-    this._identifyId = 0
-    this._lastEventTime = null
-    this._newSession = false
-    this._sequenceNumber = 0
-    this._sessionId = null
-  
-    this._userAgent = userAgent|| null
-  }
-
+AmplitudeClientInServer.prototype = Object.assign({}, AmplitudeClient.prototype, {
   init(apiKey, opt_userId, opt_config, opt_callback) {
     if (type(apiKey) !== 'string' || utils.isEmptyString(apiKey)) {
       utils.log.error('Invalid apiKey. Please re-initialize with a valid apiKey')
@@ -61,10 +42,15 @@ export default class ServerAmplitudeClient extends AmplitudeClient {
   
     try {
       this.options.apiKey = apiKey
-      Object.assign(this.option, opt_config)
+      
+      _parseConfig(this.options, opt_config)
+      var trackingOptions = _generateApiPropertiesTrackingConfig(this)
+      this._apiPropertiesTrackingOptions = Object.keys(trackingOptions).length > 0 ? {tracking_options: trackingOptions} : {}
+
       this.options.deviceId = 
         (type(opt_config) === 'object' && type(opt_config.deviceId) === 'string' &&
           !utils.isEmptyString(opt_config.deviceId) && opt_config.deviceId) ||
+        (this.options.deviceIdFromUrlParam && this._getDeviceIdFromUrlParam(this._getUrlParams())) ||
         this.options.deviceId ||
         (UUID() + 'R')
       this.options.userId =
@@ -78,12 +64,10 @@ export default class ServerAmplitudeClient extends AmplitudeClient {
         opt_callback(this)
       }
     }
-  }
-
+  },
   regenerateDeviceId() {
     this.setDeviceId(UUID() + 'R')
-  }
-
+  },
   setDeviceId(deviceId) {
     if (!utils.validateInput(deviceId, 'deviceId', 'string')) {
       return
@@ -96,8 +80,7 @@ export default class ServerAmplitudeClient extends AmplitudeClient {
     } catch (e) {
       utils.log.error(e)
     }
-  }
-
+  },
   setOptOut(enable) {
     if (!utils.validateInput(enable, 'enable', 'boolean')) {
       return
@@ -108,16 +91,14 @@ export default class ServerAmplitudeClient extends AmplitudeClient {
     } catch (e) {
       utils.log.error(e)
     }
-  }
-
+  },
   setUserId(userId) {
     try {
       this.options.userId = (userId !== undefined && userId !== null && ('' + userId)) || null
     } catch (e) {
       utils.log.error(e)
     }
-  }
-
+  },
   _logEvent(eventType, eventProperties, apiProperties, userProperties, groups, timestamp, callback) {
     if (!eventType) {
       if (type(callback) === 'function') {
@@ -193,8 +174,7 @@ export default class ServerAmplitudeClient extends AmplitudeClient {
     } catch (e) {
       utils.log.error(e)
     }
-  }
-
+  },
   sendEvents(callback) {
     if (!this._apiKeySet('sendEvents()')) {
       if (type(callback) === 'function') {
@@ -283,30 +263,100 @@ export default class ServerAmplitudeClient extends AmplitudeClient {
           // utils.log('failed upload');
         }
       })
-  }
-
+  },
+  _getUrlParams () {
+    if (this.options.url && this.options.url.indexOf('?') !== -1)
+      return this.options.url.match(/\?.+$/)[0]
+  },
   getSessionId() {
     utils.log.warn('The `getSessionId` is not implement on server-side')
-  }
-
+  },
   isNewSession() {
     utils.log.warn('The `isNewSession` is not implement on server-side. It always return true')
     return true
-  }
-
+  },
   logRevenueV2() {
     utils.log.warn('The `logRevenueV2` is not implement on server-side.')
-  }
-
+  },
   setDomain() {
     utils.log.warn('The `setDomain` is not implement on server-side.')
-  }
-  
+  },
   setSessionId() {
     utils.log.warn('The `setSessionId` is not implement on server-side.')
-  }
-}
+  },
+
+  // addition
+  setByRequest(request) {
+    const userAgent = _.get(request, 'headers.user-agent')
+    this.setUserAgent(userAgent)
+    
+    let acceptLanguage = _.get(request, 'headers.accept-language')
+    const language = acceptLanguage ? acceptLanguage.split(/,\s*/)[0] : null
+    this.setLanguage(language)
+
+    let url = _.get(request, 'url')
+    this.setUrl(url)
+  },
+  setUserAgent (userAgent) {
+    this._ua = userAgent ? new UAParser(userAgent).getResult() : null
+    this._userAgent = userAgent|| null
+  },
+  setLanguage (language) {
+    this.options.language = language
+  },
+  setUrl (url) {
+    this.options.url = url
+  },
+})
 
 var _shouldTrackField = function _shouldTrackField(scope, field) {
   return !!scope.options.trackingOptions[field]
 }
+
+var _parseConfig = function _parseConfig(options, config) {
+  if (type(config) !== 'object') {
+    return
+  }
+
+  // validates config value is defined, is the correct type, and some additional value sanity checks
+  var parseValidateAndLoad = function parseValidateAndLoad(key) {
+    if (!options.hasOwnProperty(key)) {
+      return  // skip bogus config values
+    }
+
+    var inputValue = config[key]
+    var expectedType = type(options[key])
+    if (!utils.validateInput(inputValue, key + ' option', expectedType)) {
+      return
+    }
+    if (expectedType === 'boolean') {
+      options[key] = !!inputValue
+    } else if ((expectedType === 'string' && !utils.isEmptyString(inputValue)) ||
+        (expectedType === 'number' && inputValue > 0)) {
+      options[key] = inputValue
+    } else if (expectedType === 'object') {
+      _parseConfig(options[key], inputValue)
+    }
+  }
+
+  for (var key in config) {
+    if (config.hasOwnProperty(key)) {
+      parseValidateAndLoad(key)
+    }
+  }
+}
+
+var _generateApiPropertiesTrackingConfig = function _generateApiPropertiesTrackingConfig(scope) {
+  // to limit size of config payload, only send fields that have been disabled
+  var fields = ['city', 'country', 'dma', 'ip_address', 'region']
+  var config = {}
+  for (var i = 0; i < fields.length; i++) {
+    var field = fields[i]
+    if (!_shouldTrackField(scope, field)) {
+      config[field] = false
+    }
+  }
+  return config
+}
+
+export default AmplitudeClientInServer
