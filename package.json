@@ -9,14 +9,16 @@
   "scripts": {
     "build": "yarn lint && babel src/index.js --out-file bundle.js --source-maps",
     "lint": "eslint --fix .",
-    "test": "jest src",
-    "dev": "jest --watch src"
+    "test": "jest --no-cache",
+    "dev": "jest --watch src",
+    "debug": "node --inspect-brk node_modules/.bin/jest --no-cache --runInBand"
   },
   "dependencies": {
     "@babel/polyfill": "^7.0.0",
-    "amplitude-js": "^4.4.0",
     "axios": "^0.18.0",
+    "babel-preset-env": "^1.7.0",
     "blueimp-md5": "^2.10.0",
+    "lodash": "^4.17.10",
     "query-string": "^6.1.0",
     "ua-parser-js": "^0.7.18"
   },
@@ -24,29 +26,17 @@
     "@babel/cli": "^7.0.0",
     "@babel/core": "^7.0.0",
     "@babel/preset-env": "^7.0.0",
+    "@babel/preset-stage-2": "^7.0.0",
+    "amplitude-js": "^4.4.0",
     "babel-core": "^7.0.0-0",
     "babel-eslint": "^9.0.0",
     "babel-jest": "^23.4.2",
     "eslint": "^5.5.0",
     "husky": "^1.0.0-rc.13",
-    "jest": "^23.5.0",
-    "regenerator-runtime": "^0.12.1"
+    "jest": "^23.5.0"
   },
-  "babel": {
-    "presets": [
-      [
-        "@babel/env",
-        {
-          "targets": {
-            "edge": "17",
-            "firefox": "60",
-            "chrome": "67",
-            "safari": "11.1"
-          },
-          "useBuiltIns": "usage"
-        }
-      ]
-    ]
+  "peerDependencies": {
+    "amplitude-js": "^4.4.0"
   },
   "eslintConfig": {
     "env": {
@@ -61,13 +51,6 @@
       "sourceType": "module"
     },
     "rules": {
-      "max-len": [
-        "error",
-        {
-          "code": 120,
-          "ignoreUrls": true
-        }
-      ],
       "arrow-spacing": [
         "error"
       ],
@@ -91,7 +74,11 @@
       "no-this-before-super": "off"
     }
   },
-  "jest": {},
+  "jest": {
+    "transformIgnorePatterns": [
+      "/node_modules/(?!amplitude-js).+\\.js$"
+    ]
+  },
   "husky": {
     "hooks": {
       "pre-commit": "yarn lint",
